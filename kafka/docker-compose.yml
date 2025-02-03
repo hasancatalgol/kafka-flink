@@ -1,0 +1,176 @@
+services:
+  
+  kafka:
+  # Documentation: https://docs.confluent.io/platform/current/installation/docker/config-reference.html#confluent-ak-configuration
+    container_name: kafka
+    image: confluentinc/cp-kafka:7.8.0
+    ports:
+      - 9092:9092    # Internal communication
+      - 29092:29092  # External port for clients outside the Docker network
+      - 9093:9093    # Controller communication
+      - 9101:9101    # Expose the JMX (Java Management Extensions) port to external monitoring tools
+    environment:
+      CONFLUENT_LICENSE: developer
+      
+      # 1 - CLUSTER SETTINGS
+      # Documentation: 
+      # https://docs.confluent.io/platform/current/kafka-metadata/config-kraft.html#configure-kraft                                      
+      # https://docs.confluent.io/platform/current/installation/configuration/broker-configs.html#cp-config-brokers 
+      
+      KAFKA_KRAFT_MODE: "true"                        # Enable KRaft (self-managed mode, no need for Zookeeper)   
+      KAFKA_NODE_ID: 1                                # Unique identifier for the node.
+      CLUSTER_ID: 5AZNAGG6SZOLY6S4Xw8dJw
+      KAFKA_PROCESS_ROLES: broker,controller          # Kafka acts as both broker and controller.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093    # Controller quorum voters (single node setup in this case)
+      
+      
+    
+      # 2 - LISTENER CONFIGURATIONS
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL      # Internal communication between Kafka brokers
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER     # Listener for controller communication
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093  
+      # Defines how Kafka will listen on different interfaces:
+      # INTERNAL: Broker-to-broker communication on port 9092
+      # EXTERNAL: External client communication on port 29092
+      # CONTROLLER: Controller communication on port 9093
+      
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      # Map each listener to its security protocol (PLAINTEXT in this case for simplicity)
+      
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092  
+      
+      # Advertised listeners for Kafka clients:
+      # INTERNAL clients use `kafka:9092` (Docker network address)
+      # EXTERNAL clients use `localhost:29092` (external access)
+      ############### NOTE ##################
+      # If you move this setup to production, change 'localhost' to the public hostname or IP.
+      
+      KAFKA_CLASSPATH: /usr/share/java/*
+      # Classpath for Kafka (default setup)
+
+      # 3 - TOPIC CONFIGURATION
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"           # Enable auto creation of topic on the server.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1          # Replication factor for the offsets topic (single node setup) Prod: 3
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0          # No initial delay for consumer group rebalancing
+      
+      # 4 - LOGS
+      KAFKA_LOG_RETENTION_HOURS: 168                     # 1 week log retention
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1  # Replication factor for transaction state log (Prod: 3)
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1             # Minimum in-sync replicas for transaction state (Prod: 2)
+      KAFKA_LOG_DIRS: /var/lib/kafka/data                # Where Kafka stores its logs.
+      KAFKA_LOG4J_LOGGERS: "org.apache.kafka=DEBUG,org.apache.kafka.connect=DEBUG"
+
+      # JMX CONFIGURATIONS
+      # https://docs.confluent.io/platform/current/installation/docker/operations/monitoring.html
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost"
+    
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONFLUENT_METRICS_ENABLE: "true"
+      KAFKA_METRIC_REPORTERS: "io.confluent.metrics.reporter.ConfluentMetricsReporter"
+    
+    volumes:
+      # Persistent storage for KSQL state 
+      - ./volumes/kafka-server-volume:/var/lib/kafka/data
+      # Logs directory for main Kafka Server
+      - ./volumes/kafka-server-logs:/kafka/logs
+    healthcheck:
+      test: ["CMD", "nc", "-z", "kafka-kraft", "9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  kafka-connect:
+    container_name: kafka-connect
+    image: confluentinc/cp-kafka-connect:7.8.0
+    ports:
+      - 8083:8083
+    environment:
+      # General Configs
+      CONNECT_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "connect-cluster"
+
+      CONNECT_TOPIC_CREATION_ENABLE: true
+
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry0:8081 
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry0:8081 
+
+      
+      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_INTERNAL_KEY_CONVERTER_SCHEMAS_ENABLE: false
+
+      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_INTERNAL_VALUE_CONVERTER_SCHEMAS_ENABLE: false
+
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_PLUGIN_PATH: /connect-plugins
+                           
+      CONNECT_LOG4J_LOGGERS: "org.apache.kafka=DEBUG,org.apache.kafka.connect=WARN"  # INFO ya da WARN cevrilmeli
+    depends_on:
+      - kafka
+    volumes:
+      - ./kafka-connect/plugins:/connect-plugins
+      - ./kafka-connect/connect-standalone.properties:/kafka/config/connect-standalone.properties
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  cp-schema-registry:
+    container_name: cp-schema-registry
+    image: confluentinc/cp-schema-registry:7.8.0
+    ports:
+      - 8081:8081
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+      SCHEMA_REGISTRY_HOST_NAME: cp-schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_SCHEMA_REGISTRY_INTER_INSTANCE_PROTOCOL: "http"
+      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: INFO
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
+      SCHEMA_REGISTRY_METRICS_PORT: 8086
+    depends_on:
+      - kafka
+    volumes:
+      - ./volumes/cp-schema-registry:/var/lib/schema-registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+  cp-rest:
+    container_name: cp-rest
+    image: confluentinc/cp-kafka-rest:7.8.0
+    ports:
+      - 8082:8082
+    environment:
+      KAFKA_REST_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082
+      KAFKA_REST_HOST_NAME: cp-rest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+  
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:7.8.0
+    container_name: control-center
+    depends_on:
+      - kafka
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONTROL_CENTER_CONNECT_CLUSTER: "connect-cluster"
+      CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONTROL_CENTER_SERVER_CONSOLE_UI_ENABLED: "true"
+    ports:
+      - "9021:9021"

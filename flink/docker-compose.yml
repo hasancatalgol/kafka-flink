@@ -1,0 +1,41 @@
+services:
+  jobmanager:
+    image: flink:scala_2.12-java17
+    ports:
+      - "8081:8081"  # Flink UI port
+    container_name: jobmanager
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager 
+    volumes:
+      - ./job-jars:/opt/flink/usrlib
+      - ./job-scripts:/opt/flink/job-scripts
+
+  taskmanager:
+    image: flink:scala_2.12-java17
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    scale: 1
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2        
+
+  flink-sql:
+    image: flink:scala_2.12-java17
+    container_name: flink-sql
+    command: "bin/sql-client.sh"
+    depends_on:
+      - jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        rest.address: jobmanager
+    volumes:
+      - ./flink-sql-history:/opt/flink/.flink-sql-history

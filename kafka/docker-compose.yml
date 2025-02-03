@@ -48,13 +48,58 @@ services:
       KAFKA_CLASSPATH: /usr/share/java/*
       # Classpath for Kafka (default setup)
 
-      # 3 - TOPIC CONFIGURATION
+
+      
+      # 3 - CLUSTER LEVEL TOPIC CONFIGURATIONS
+      # Compression Settings
+      KAFKA_CLEANUP_POLICY: “delete,compact”   # "delete" is the default policy. Other option is "compact". Deletes useless logs, compacts the ones we need. 
+      KAFKA_COMPRESSION_TYPE: lz4              # Check the compression algorithms from the documentation. 
+                                               # Additional documentation: https://developer.ibm.com/articles/benefits-compression-kafka-messaging/
+      KAFKA_COMPRESSION_LZ4_LEVEL: 4           # A number between 1-9
+  
+      
+      
+      ########################### CONFLUENT PLATFORM SPECIFIC TOPIC CONFIGURATIONS ##############################
+      
+      # CONFLUENT_CONTEXT_NAME: ""
+      # CONFLUENT_KEY_SCHEMA_VALIDATION: "false"
+      # CONFLUENT_KEY_SUBJECT_NAME_STRATEGY: "io.confluent.kafka.serializers.subject.TopicNameStrategy"
+      
+      # CONFLUENT_VALUE_SCHEMA_VALIDATION: "false"
+      # CONFLUENT_VALUE_SUBJECT_NAME_STRATEGY: "io.confluent.kafka.serializers.subject.TopicNameStrategy" 
+      
+      # CONFLUENT_TIER_ENABLE: "false"
+      # CONFLUENT_TIER_CLEANER_ENABLE: "false"
+      # CONFLUENT_TIER_LOCAL_HOTSET_BYTES: -1
+      # CONFLUENT_TIER_LOCAL_HOTSET_MS: 86400000    # 1 day
+      
+
+      
+      # Tombstone: Records with a null value indicating a delete
+      KAFKA_LOG_CLEANER_DELETE_RETENTION_MS: 86400000  # It controls how long Kafka keeps tombstone records in compacted topics before they are permanently deleted by the log cleaner.
+      # delete.retention.ms=86400000
+      KAFKA_FILE_DELETE_DELAY_MS: 120000               # This option delays the inevitable destruction of the logs for 2 minutes.
+        
+
+
+
+
+      KAFKA_INDEX_INTERVAL_BYTES:      
+      KAFKA_LOG_RETENTION_HOURS: 168                   # 1 week log retention
+      KAFKA_LOG_RETENTION_BYES: 
+      # Flush Settings: Writing messages from RAM to Disk
+      KAFKA_FLUSH_MESSAGES: 10000                           # Flushes (write to disk from RAM's) after every 10,000 messages. 
+      KAFKA_LOG_FLUSH_INTERVAL_MS: 300000                   # Flueshes every 5 minutes, even if we don't reach 10,0000 messsages.
+
+      
+      
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"           # Enable auto creation of topic on the server.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1          # Replication factor for the offsets topic (single node setup) Prod: 3
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0          # No initial delay for consumer group rebalancing
       
-      # 4 - LOGS
-      KAFKA_LOG_RETENTION_HOURS: 168                     # 1 week log retention
+      
+      
+
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1  # Replication factor for transaction state log (Prod: 3)
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1             # Minimum in-sync replicas for transaction state (Prod: 2)
       KAFKA_LOG_DIRS: /var/lib/kafka/data                # Where Kafka stores its logs.
@@ -63,8 +108,8 @@ services:
       # JMX CONFIGURATIONS
       # https://docs.confluent.io/platform/current/installation/docker/operations/monitoring.html
 
-      KAFKA_JMX_PORT: 9101                               # Kafka's JMX (Java Management Extensions) server 
-      KAFKA_JMX_HOSTNAME: kafka                      # This defines the hostname on which the JMX service will be available.
+      KAFKA_JMX_PORT: 9101             # Kafka's JMX (Java Management Extensions) server 
+      KAFKA_JMX_HOSTNAME: kafka        # This defines the hostname on which the JMX service will be available.
       KAFKA_JMX_OPTS: >
         -Dcom.sun.management.jmxremote                   
         -Dcom.sun.management.jmxremote.port=9101

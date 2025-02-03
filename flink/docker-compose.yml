@@ -12,6 +12,8 @@ services:
     volumes:
       - ./job-jars:/opt/flink/usrlib
       - ./job-scripts:/opt/flink/job-scripts
+    networks:
+      one-network-to-rule-them-all:
 
   taskmanager:
     image: flink:scala_2.12-java17
@@ -25,6 +27,8 @@ services:
         jobmanager.rpc.address: jobmanager
         taskmanager.numberOfTaskSlots: 2
         parallelism.default: 2        
+    networks:
+      one-network-to-rule-them-all:
 
   flink-sql:
     image: flink:scala_2.12-java17
@@ -37,5 +41,12 @@ services:
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
         rest.address: jobmanager
+    networks:
+      one-network-to-rule-them-all:
     volumes:
       - ./flink-sql-history:/opt/flink/.flink-sql-history
+
+
+networks:
+  one-network-to-rule-them-all:
+    external: true

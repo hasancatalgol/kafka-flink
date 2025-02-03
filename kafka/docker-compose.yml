@@ -8,7 +8,7 @@ services:
       - 9092:9092    # Internal communication
       - 29092:29092  # External port for clients outside the Docker network
       - 9093:9093    # Controller communication
-      - 9101:9101    # Expose the JMX (Java Management Extensions) port to external monitoring tools
+      - 9101:9101    # Prometheus JMX port
     environment:
       CONFLUENT_LICENSE: developer
       
@@ -62,21 +62,32 @@ services:
 
       # JMX CONFIGURATIONS
       # https://docs.confluent.io/platform/current/installation/docker/operations/monitoring.html
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
-      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost"
-    
-      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "kafka:9092"
-      CONFLUENT_METRICS_ENABLE: "true"
-      KAFKA_METRIC_REPORTERS: "io.confluent.metrics.reporter.ConfluentMetricsReporter"
+
+      KAFKA_JMX_PORT: 9101                               # Kafka's JMX (Java Management Extensions) server 
+      KAFKA_JMX_HOSTNAME: kafka                      # This defines the hostname on which the JMX service will be available.
+      KAFKA_JMX_OPTS: >
+        -Dcom.sun.management.jmxremote                   
+        -Dcom.sun.management.jmxremote.port=9101
+        -Dcom.sun.management.jmxremote.rmi.port=9101
+        -Dcom.sun.management.jmxremote.ssl=false
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Djava.rmi.server.hostname=kafka
+      JMX_PROMETHEUS_EXPORTER_PORT: 9101 
+      
+      # CONFLUENT_METRICS_ENABLE: "false"
+      # CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "kafka:9092"
+      # CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      # KAFKA_METRIC_REPORTERS: "io.confluent.metrics.reporter.ConfluentMetricsReporter"
     
     volumes:
-      # Persistent storage for KSQL state 
+      # Persistent storage for  
       - ./volumes/kafka-server-volume:/var/lib/kafka/data
       # Logs directory for main Kafka Server
       - ./volumes/kafka-server-logs:/kafka/logs
+    networks:
+      one-network-to-rule-them-all:
     healthcheck:
-      test: ["CMD", "nc", "-z", "kafka-kraft", "9092"]
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
       interval: 10s
       timeout: 10s
       retries: 3
@@ -106,12 +117,21 @@ services:
       CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_INTERNAL_VALUE_CONVERTER_SCHEMAS_ENABLE: false
 
+      CONNECT_CONFIG_STORAGE_TOPIC: __connect-configs   # Name of the config storage topic
+      CONNECT_OFFSET_STORAGE_TOPIC: __connect-offsets   # Name of the offset storage topic
+      CONNECT_STATUS_STORAGE_TOPIC: __connect-statuses  # Name of the status storage topic
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1    # Replication factor for config topic
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1    # Replication factor for offset topic
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1    # Replication factor for status topic
+
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_PLUGIN_PATH: /connect-plugins
                            
       CONNECT_LOG4J_LOGGERS: "org.apache.kafka=DEBUG,org.apache.kafka.connect=WARN"  # INFO ya da WARN cevrilmeli
     depends_on:
       - kafka
+    networks:
+      one-network-to-rule-them-all:
     volumes:
       - ./kafka-connect/plugins:/connect-plugins
       - ./kafka-connect/connect-standalone.properties:/kafka/config/connect-standalone.properties
@@ -121,6 +141,7 @@ services:
       timeout: 10s
       retries: 3
 
+      
   cp-schema-registry:
     container_name: cp-schema-registry
     image: confluentinc/cp-schema-registry:7.8.0
@@ -139,6 +160,8 @@ services:
       - kafka
     volumes:
       - ./volumes/cp-schema-registry:/var/lib/schema-registry
+    networks:
+      one-network-to-rule-them-all:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/"]
       interval: 10s
@@ -153,6 +176,8 @@ services:
       KAFKA_REST_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
       KAFKA_REST_LISTENERS: http://0.0.0.0:8082
       KAFKA_REST_HOST_NAME: cp-rest
+    networks:
+      one-network-to-rule-them-all:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/"]
       interval: 10s
@@ -174,3 +199,12 @@ services:
       CONTROL_CENTER_SERVER_CONSOLE_UI_ENABLED: "true"
     ports:
       - "9021:9021"
+    networks:
+      one-network-to-rule-them-all:
+
+networks:
+  one-network-to-rule-them-all:
+    external: true
+
+
+  

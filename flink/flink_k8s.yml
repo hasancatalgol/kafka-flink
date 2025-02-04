@@ -1,0 +1,100 @@
+---
+apiVersion: v1
+kind: Service
+metadata:               # Contains data to uniquely identify the resource.
+  name: jobmanager
+spec:
+  selector:
+    app: jobmanager
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 8081
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jobmanager
+  template:
+    metadata:
+      labels:
+        app: jobmanager
+    spec:
+      containers:
+        - name: jobmanager
+          image: flink:scala_2.12-java17
+          ports:
+            - containerPort: 8081
+          command: ["jobmanager"]
+          env:
+            - name: FLINK_PROPERTIES
+              value: "jobmanager.rpc.address: jobmanager"
+          volumeMounts:
+            - name: job-jars
+              mountPath: /opt/flink/usrlib
+            - name: job-scripts
+              mountPath: /opt/flink/job-scripts
+      volumes:
+        - name: job-jars
+          hostPath:
+            path: ./job-jars
+        - name: job-scripts
+          hostPath:
+            path: ./job-scripts
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: taskmanager
+  template:
+    metadata:
+      labels:
+        app: taskmanager
+    spec:
+      containers:
+        - name: taskmanager
+          image: flink:scala_2.12-java17
+          command: ["taskmanager"]
+          env:
+            - name: FLINK_PROPERTIES
+              value: "jobmanager.rpc.address: jobmanager\ntaskmanager.numberOfTaskSlots: 2\nparallelism.default: 2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-sql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink-sql
+  template:
+    metadata:
+      labels:
+        app: flink-sql
+    spec:
+      containers:
+        - name: flink-sql
+          image: flink:scala_2.12-java17
+          command: ["bin/sql-client.sh"]
+          env:
+            - name: FLINK_PROPERTIES
+              value: "jobmanager.rpc.address: jobmanager\nrest.address: jobmanager"
+          volumeMounts:
+            - name: flink-sql-history
+              mountPath: /opt/flink/.flink-sql-history
+      volumes:
+        - name: flink-sql-history
+          hostPath:
+            path: ./flink-sql-history

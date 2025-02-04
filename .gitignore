@@ -1,1 +1,2 @@
 kafka/volumes/*
+kafka/volumes/kafka-server-volume/*

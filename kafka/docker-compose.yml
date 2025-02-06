@@ -50,7 +50,7 @@ services:
 
 
       
-      # 3 - CLUSTER LEVEL TOPIC CONFIGURATIONS
+      # 3 - CLUSTER LEVEL TOPIC CONFIGURsATIONS
       # Compression Settings
       KAFKA_CLEANUP_POLICY: “delete,compact”   # "delete" is the default policy. Other option is "compact". Deletes useless logs, compacts the ones we need. 
       KAFKA_COMPRESSION_TYPE: lz4              # Check the compression algorithms from the documentation. 
@@ -108,7 +108,7 @@ services:
       # JMX CONFIGURATIONS
       # https://docs.confluent.io/platform/current/installation/docker/operations/monitoring.html
 
-      KAFKA_JMX_PORT: 9101             # Kafka's JMX (Java Management Extensions) server 
+      KAFKA_JMX_PORT: 9102             # Kafka's JMX (Java Management Extensions) server 
       KAFKA_JMX_HOSTNAME: kafka        # This defines the hostname on which the JMX service will be available.
       KAFKA_JMX_OPTS: >
         -Dcom.sun.management.jmxremote                   
@@ -125,8 +125,7 @@ services:
       # KAFKA_METRIC_REPORTERS: "io.confluent.metrics.reporter.ConfluentMetricsReporter"
     
     volumes:
-      # Persistent storage for  
-      - ./volumes/kafka-server-volume:/var/lib/kafka/data
+      - kafka_data:/var/lib/kafka/data
       # Logs directory for main Kafka Server
       - ./volumes/kafka-server-logs:/kafka/logs
     networks:
@@ -246,6 +245,9 @@ services:
       - "9021:9021"
     networks:
       one-network-to-rule-them-all:
+
+volumes:
+  kafka_data:
 
 networks:
   one-network-to-rule-them-all:

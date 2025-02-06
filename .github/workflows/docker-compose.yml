@@ -1,0 +1,55 @@
+name: Docker Compose CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  docker-compose:
+    runs-on: ubuntu-latest
+
+    services:
+      kafka:
+        image: confluentinc/cp-kafka:7.8.0
+        ports:
+          - 29092:29092
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Docker Compose and build services
+      - name: Build and start Docker Compose services
+        run: docker-compose up -d --build
+
+      # Step 3: Wait for services to become healthy
+      - name: Wait for Kafka to become healthy
+        run: |
+          echo "Waiting for Kafka broker to become healthy..."
+          for i in {1..30}; do
+            if docker inspect --format='{{.State.Health.Status}}' kafka | grep -q 'healthy'; then
+              echo "Kafka is healthy!"
+              exit 0
+            fi
+            echo "Still waiting..."
+            sleep 10
+          done
+          echo "Kafka did not become healthy in time."
+          exit 1
+
+      # Step 4: Run integration tests (if applicable)
+      - name: Run integration tests
+        run: |
+          echo "Running tests..."
+          # Insert your testing commands here, e.g., Maven, Python tests, or other tools
+          mvn test
+
+      # Step 5: Tear down services after testing
+      - name: Stop and remove Docker Compose services
+        if: always()
+        run: docker-compose down --volumes

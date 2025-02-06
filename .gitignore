@@ -1,2 +1,4 @@
 kafka/volumes/*
 kafka/volumes/kafka-server-volume/*
+.vscode
+kafka-commands.xlsx
